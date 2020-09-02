@@ -38,9 +38,22 @@ A ClojureScript library for reading and writing comma (and other) separated valu
 (csv/write-csv [[1 2 3] [4 5 6]] :newline :cr+lf)
 ;;=> "1,2,3\r\n4,5,6"
 
-;; Quote fields
-(csv/write-csv [["1,000" "2" "3"] ["4" "5,000" "6"]] :quote? true)
-;;=> ""1,000","2","3"\n"4","5,000","6""
+;; Quote all fields
+(csv/write-csv [[1000 2.9 true
+                 "description, with comma"]
+                [4 false "6,000"
+				"prior is a quoted number with , thousands delimiter"]] 
+                :quote? true)
+;;=> ""1000","2.9","true","description, with comma"\n"4","false","6,000","prior is a quoted number with , thousands delimiter""
+
+;; But keep-numbers unquoted
+;; note 1000, 2.9 and 4 in output are not individually quoted.
+(csv/write-csv [[1000 2.9 true
+                 "description, with comma"]
+                [4 false "6,000"
+				"prior is a quoted number with , thousands delimiter"]] 
+                :quote? true :keep-numbers? true)
+;;=> "1000,2.9,"true","description, with comma"\n4,"false","6,000","prior is a quoted number with , thousands delimiter""
 ```
 
 ## Alternatives
@@ -55,7 +68,7 @@ Running the tests:
 $ lein cleantest
 ```
 
-(assumes Leiningen 2.x)
+(assumes Leiningen 2.x, requires [PhantomJS](https://phantomjs.org))
 
 ## Contributing
 
@@ -65,10 +78,6 @@ We welcome all contributors to the project. Please submit an [Issue](https://git
 and a
 [Pull Request](https://github.com/testdouble/clojurescript.csv/pulls)
 if you have one.
-
-## Documentation
-
-More documentation can be found on the [wiki](https://github.com/testdouble/clojurescript.csv/wiki).
 
 ## License
 

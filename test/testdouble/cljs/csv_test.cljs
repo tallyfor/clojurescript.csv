@@ -5,6 +5,9 @@
 
 (enable-console-print!)
 
+(defn- boolean? [x]
+  (or (true? x) (false? x)))
+
 (deftest write-csv-test
   (let [data [[1 2 3] [4 5 6]]]
     (testing "default separator ','"
@@ -24,7 +27,7 @@
 
     (testing "str non-string fields"
       (is (= "100,2,\n4,500,false"
-             (csv/write-csv [["100" 2 nil] ["4" "500" false]]))))
+             (csv/write-csv [["100" 2 nil] ["4" "500" false]] :quote? false))))
 
     (testing "str and quote non-string fields"
       (is (= "\"1,000\",\"2\",\"\"\n\"4\",\"5,000\",\"false\""
@@ -36,31 +39,41 @@
 
     (testing "fields with spaces"
       (is (= "a b,c d\ne f,g h"
-             (csv/write-csv [["a b" "c d"] ["e f" "g h"]])))
+             (csv/write-csv [["a b" "c d"] ["e f" "g h"]] :quote? false)))
       (is (= "\"a b\",\"c d\"\n\"e f\",\"g h\""
              (csv/write-csv [["a b" "c d"] ["e f" "g h"]] :quote? true))))
 
-    (testing ":quote? true and :keep-numbers? true"
+    (testing "numbers with commas as string; :quote? default which keeps numbers unquoted"
       (is (= "1000,2.9,\"true\",\"description, with comma\"\n4,\"false\",\"6,000\",\"prior is quoted number with one comma , thousands delimiter\""
              (csv/write-csv
               [[1000 2.9 true "description, with comma"]
-               [4 false "6,000" "prior is quoted number with one comma , thousands delimiter"]]
-              :quote? true :keep-numbers? true))))
+               [4 false "6,000" "prior is quoted number with one comma , thousands delimiter"]]))))
 
-    (testing "keep-numbers? true only"
-      ;; expect: no effect.  :keep-numbers? must be used with :quote?
-      (is (= "1000,2.9,true,description, with comma\n4,false,6,000,prior is quoted number with one comma , thousands delimiter"
+    (testing "quote? as predicate #(or (boolean? %) (string? %) (and (number? %) (< % 999)))"
+      ;; expect: 2.9, 4 are quoted numbers. 6,000 is quoted because it's a string.
+      (is (= "1000,\"2.9\",\"true\",\"description, with comma\"\n\"4\",\"false\",\"6,000\",\"prior is quoted number with one comma , thousands delimiter\""
              (csv/write-csv
               [[1000 2.9 true "description, with comma"]
                [4 false "6,000" "prior is quoted number with one comma , thousands delimiter"]]
-              :keep-numbers? true))))
+              :quote? #(or (boolean? %) (string? %) (and (number? %) (< % 999)))))))
 
-    (testing "blank fields at end of row"
+    (testing "quote? false and empty strings "
       (is (= "a,b,c\n1,1,1\n2,,\n3,,"
              (csv/write-csv [["a" "b" "c"]
                              ["1" "1" "1"]
                              ["2" "" ""]
-                             ["3" "" ""]]))))
+                             ["3" "" ""]]
+                            :quote? false
+                            ))))
+
+    (testing "quote? as pred for no empty string that has quotes "
+      (is (= "\"a\",\"b\",\"c\"\n1,1,1\n\"d\",,\n3,,"
+             (csv/write-csv [["a" "b" "c"]
+                             [ 1   1   1]
+                             ["d" "" ""]
+                             [ 3  "" ""]]
+                            :quote? #(and (string? %) (not (empty? %)))
+                            ))))
 
     (testing "error when newline is not one of :lf OR :cr+lf"
       (is (thrown-with-msg? js/Error #":newline" (csv/write-csv data :newline "foo"))))))

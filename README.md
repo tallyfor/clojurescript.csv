@@ -22,6 +22,9 @@ A ClojureScript library for reading and writing comma (and other) separated valu
 
 ## Usage
 
+:quote? is a boolean or predicate that determines if quoting is turned
+out for an element.  Default is strings and booleans only are quoted. 
+
 ```clojure
 (ns my.domain.core
   (:require [testdouble.cljs.csv :as csv]))
@@ -46,14 +49,23 @@ A ClojureScript library for reading and writing comma (and other) separated valu
                 :quote? true)
 ;;=> ""1000","2.9","true","description, with comma"\n"4","false","6,000","prior is a quoted number with , thousands delimiter""
 
-;; But keep-numbers unquoted
+;; Numbers unquoted is default
 ;; note 1000, 2.9 and 4 in output are not individually quoted.
-(csv/write-csv [[1000 2.9 true
-                 "description, with comma"]
-                [4 false "6,000"
-				"prior is a quoted number with , thousands delimiter"]] 
-                :quote? true :keep-numbers? true)
+(csv/write-csv
+              [[1000 2.9 true "description, with comma"]
+              [4 false "6,000" "prior is quoted number with one comma , thousands delimiter"]])
+
 ;;=> "1000,2.9,"true","description, with comma"\n4,"false","6,000","prior is a quoted number with , thousands delimiter""
+
+;; To not quote empty strings (NB booleans are ignored in this example)
+(csv/write-csv [["a" "b" "c"]
+                [ 1   1   1]
+                ["d" "" ""]
+                [ 3  "" ""]]
+                :quote? #(and (string? %) (not (empty? %))))
+
+;;=> ""a","b","c"\n1,1,1\n"d",,\n3,,"
+
 ```
 
 ## Alternatives

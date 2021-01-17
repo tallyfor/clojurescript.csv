@@ -1,27 +1,30 @@
 (ns testdouble.cljs.csv
   (:require [clojure.string :as str]))
 
+(defn- boolean? [x]
+  (or (true? x) (false? x)))
+
 (defn- escape-quotes [s]
   (str/replace s "\"" "\"\""))
 
 (defn- wrap-in-quotes [s]
-  (if (string? s)
-    (str "\"" (escape-quotes s) "\"")
-    s))
+  (str "\"" (escape-quotes s) "\""))
 
-(defn- selective-str [s keep-numbers?]
-  (if (and keep-numbers? (number? s))
-    s
-    (str s)))
+(defn- maybe-wrap-in-quotes
+  [quotes? element]
+  (let [quotes? (if (fn? quotes?)
+                  quotes?
+                  (fn [_] quotes?))]     
+    (if (quotes? element)
+      (-> element str wrap-in-quotes)
+      element)))
 
-(defn- separate [data separator quote? keep-numbers?]
+(defn- separate [data separator quote?]
   (str/join separator
-            (cond->> data
-              :always (map #(selective-str % keep-numbers?))
-              quote?  (map wrap-in-quotes))))
+            (map (partial maybe-wrap-in-quotes quote?) data)))
 
-(defn- write-data [data separator newline quote? keep-numbers?]
-  (str/join newline (map #(separate % separator quote? keep-numbers?) data)))
+(defn- write-data [data separator newline quote?]
+  (str/join newline (map #(separate % separator quote?) data)))
 
 (defn- conj-in [coll index x]
   (assoc coll index (conj (nth coll index) x)))
@@ -40,22 +43,18 @@
   :newline       - line separator
                    (accepts :lf or :cr+lf)
                    (default :lf)
-  :quote?        - wrap all in quotes
-                   (default false)
-  :keep-numbers? - do not quote numeric
-                   fields
-                   (default false,
-                   used with :quote?)"
+  :quote?        - predicate on element if true, wrap in quotes
+                   (default string? or boolean?)
+  "
 
   {:arglists '([data] [data & options]) :added "0.1.0"}
   [data & options]
-  (let [{:keys [separator newline quote? keep-numbers?] :or {separator "," newline :lf quote? false keep-numbers? false}} options]
+  (let [{:keys [separator newline quote?] :or {separator "," newline :lf quote?  #(or (string? %) (boolean? %))}} options] 
     (if-let [newline-char (get newlines newline)]
       (write-data data
                   separator
                   newline-char
-                  quote?
-                  keep-numbers?)
+                  quote?)
       (throw (js/Error. newline-error-message)))))
 
 (defn read-csv

@@ -1,7 +1,7 @@
 (ns testdouble.cljs.csv
   (:require [clojure.string :as str]))
 
-(defn- boolean? [x]
+(defn- _boolean? [x]                    ; Test harness depends on something around CLJS 1.6 which doesn't have boolean?
   (or (true? x) (false? x)))
 
 (defn- escape-quotes [s]
@@ -46,7 +46,7 @@
 
   {:arglists '([data] [data & options]) :added "0.1.0"}
   [data & options]
-  (let [{:keys [separator newline quote?] :or {separator "," newline :lf quote?  #(or (string? %) (boolean? %))}} options] 
+  (let [{:keys [separator newline quote?] :or {separator "," newline :lf quote?  #(or (string? %) (_boolean? %))}} options] 
     (if-let [newline-char (get newlines newline)]
       (write-data data
                   separator

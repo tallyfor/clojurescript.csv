@@ -1,4 +1,4 @@
-# clojurescript.csv [![Build Status](https://travis-ci.org/testdouble/clojurescript.csv.png?branch=master)](https://travis-ci.org/testdouble/clojurescript.csv) [![Dependency Status](https://www.versioneye.com/user/projects/53d67fe23648f4a793000046/badge.svg)](https://www.versioneye.com/user/projects/53d67fe23648f4a793000046)
+# clojurescript.csv [![Build Status](https://travis-ci.org/testdouble/clojurescript.csv.png?branch=main)](https://travis-ci.org/testdouble/clojurescript.csv) [![Dependency Status](https://www.versioneye.com/user/projects/53d67fe23648f4a793000046/badge.svg)](https://www.versioneye.com/user/projects/53d67fe23648f4a793000046)
 
 A ClojureScript library for reading and writing comma (and other) separated values.
 
@@ -7,7 +7,7 @@ A ClojureScript library for reading and writing comma (and other) separated valu
 [Leiningen](https://github.com/technomancy/leiningen/):
 
 ```
-[testdouble/clojurescript.csv "0.4.5"]
+[testdouble/clojurescript.csv "0.5.2-TALLYFOR"]
 ```
 
 [Maven](http://maven.apache.org/):
@@ -16,11 +16,14 @@ A ClojureScript library for reading and writing comma (and other) separated valu
 <dependency>
   <groupId>testdouble</groupId>
   <artifactId>clojurescript.csv</artifactId>
-  <version>0.4.5</version>
+  <version>0.5.1</version>
 </dependency>
 ```
 
 ## Usage
+
+:quote? is a boolean or predicate that determines if quoting is turned
+out for an element.  Default is strings and booleans only are quoted. 
 
 ```clojure
 (ns my.domain.core
@@ -38,10 +41,36 @@ A ClojureScript library for reading and writing comma (and other) separated valu
 (csv/write-csv [[1 2 3] [4 5 6]] :newline :cr+lf)
 ;;=> "1,2,3\r\n4,5,6"
 
-;; Quote fields
-(csv/write-csv [["1,000" "2" "3"] ["4" "5,000" "6"]] :quote? true)
-;;=> ""1,000","2","3"\n"4","5,000","6""
+;; Quote all fields
+(csv/write-csv [[1000 2.9 true
+                 "description, with comma"]
+                [4 false "6,000"
+				"prior is a quoted number with , thousands delimiter"]] 
+                :quote? true)
+;;=> ""1000","2.9","true","description, with comma"\n"4","false","6,000","prior is a quoted number with , thousands delimiter""
+
+;; Numbers unquoted is default
+;; note 1000, 2.9 and 4 in output are not individually quoted.
+(csv/write-csv
+              [[1000 2.9 true "description, with comma"]
+              [4 false "6,000" "prior is quoted number with one comma , thousands delimiter"]])
+
+;;=> "1000,2.9,"true","description, with comma"\n4,"false","6,000","prior is a quoted number with , thousands delimiter""
+
+;; To not quote empty strings (NB booleans are ignored in this example)
+(csv/write-csv [["a" "b" "c"]
+                [ 1   1   1]
+                ["d" "" ""]
+                [ 3  "" ""]]
+                :quote? #(and (string? %) (not (empty? %))))
+
+;;=> ""a","b","c"\n1,1,1\n"d",,\n3,,"
+
 ```
+
+## Alternatives
+
+There's a CSV parser [included in Google Closure](https://google.github.io/closure-library/api/goog.labs.format.csv.html).
 
 ## Development
 
@@ -51,7 +80,7 @@ Running the tests:
 $ lein cleantest
 ```
 
-(assumes Leiningen 2.x)
+(assumes Leiningen 2.x, requires [PhantomJS](https://phantomjs.org))
 
 ## Contributing
 
@@ -61,10 +90,6 @@ We welcome all contributors to the project. Please submit an [Issue](https://git
 and a
 [Pull Request](https://github.com/testdouble/clojurescript.csv/pulls)
 if you have one.
-
-## Documentation
-
-More documentation can be found on the [wiki](https://github.com/testdouble/clojurescript.csv/wiki).
 
 ## License
 

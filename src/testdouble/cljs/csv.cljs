@@ -1,23 +1,30 @@
 (ns testdouble.cljs.csv
   (:require [clojure.string :as str]))
 
+(defn- _boolean? [x]                    ; Test harness depends on something around CLJS 1.6 which doesn't have boolean?
+  (or (true? x) (false? x)))
+
 (defn- escape-quotes [s]
   (str/replace s "\"" "\"\""))
 
 (defn- wrap-in-quotes [s]
   (str "\"" (escape-quotes s) "\""))
 
+(defn- maybe-wrap-in-quotes
+  [quotes? element]
+  (let [quotes? (if (fn? quotes?)
+                  quotes?
+                  (fn [_] quotes?))]     
+    (if (quotes? element)
+      (-> element str wrap-in-quotes)
+      element)))
+
 (defn- separate [data separator quote?]
   (str/join separator
-            (cond->> data
-              :always (map str)
-              quote? (map wrap-in-quotes))))
+            (map (partial maybe-wrap-in-quotes quote?) data)))
 
 (defn- write-data [data separator newline quote?]
   (str/join newline (map #(separate % separator quote?) data)))
-
-(defn- conj-in [coll index x]
-  (assoc coll index (conj (nth coll index) x)))
 
 (def ^:private newlines
   {:lf "\n" :cr+lf "\r\n"})
@@ -28,17 +35,18 @@
 (defn write-csv
   "Writes data to String in CSV-format.
   Accepts the following options:
-  :separator - field separator
-               (default ,)
-  :newline   - line separator
-               (accepts :lf or :cr+lf)
-               (default :lf)
-  :quote?    - wrap in quotes
-               (default false)"
+  :separator     - field separator
+                   (default ,)
+  :newline       - line separator
+                   (accepts :lf or :cr+lf)
+                   (default :lf)
+  :quote?        - predicate on element if true, wrap in quotes
+                   (default string? or boolean?)
+  "
 
   {:arglists '([data] [data & options]) :added "0.1.0"}
   [data & options]
-  (let [{:keys [separator newline quote?] :or {separator "," newline :lf quote? false}} options]
+  (let [{:keys [separator newline quote?] :or {separator "," newline :lf quote?  #(or (string? %) (_boolean? %))}} options] 
     (if-let [newline-char (get newlines newline)]
       (write-data data
                   separator
@@ -46,127 +54,91 @@
                   quote?)
       (throw (js/Error. newline-error-message)))))
 
+(defn- -advance
+  "Move to the next character."
+  [{:keys [chars] :as state}]
+  (assoc state
+         :char  (first chars)
+         :chars (rest chars)))
+
+(defn- -consume
+  "Append the current character onto the field. Advances."
+  [{:keys [char] :as state}]
+  (-> state
+      (update :field-buffer str char)
+      (-advance)))
+
+(defn- -end-field
+  "Finalize the field, adding it to the current row. Does not advance.
+
+  Following convention, a field that hasn't had any chars appended appears as an
+  empty string, not nil."
+  [{:keys [field-buffer row] :as state}]
+  (assoc state
+         :field-buffer nil
+         :row (conj row (str field-buffer))))
+
+(defn- -end-row
+  "Finalize the last field in the row. Then append the row to the collection of
+  all rows, and start a new row. Does not advance."
+  [state]
+  (let [{:keys [row] :as state} (-end-field state)]
+    (-> state
+        (update :rows conj row)
+        (assoc :row []))))
+
+(defn- -init-read
+  "Prepare to process the string `data`. Advances to the first character."
+  [data]
+  (-advance {:chars        (seq data)
+             :field-buffer nil
+             :row          []
+             :rows         []}))
+
 (defn read-csv
   "Reads data from String in CSV-format."
   {:arglists '([data] [data & options]) :added "0.3.0"}
   [data & options]
-  (let [{:keys [separator newline] :or {separator "," newline :lf}} options]
-    (if-let [newline-char (get newlines newline)]
-      (let [data-length (count data)]
-        (loop [index 0
-               state :in-field
-               in-quoted-field false
-               field-buffer nil
-               rows []]
-          (let [last-row-index (- (count rows) 1)]
-            (if (< index data-length)
-              (let [char (nth data index)
-                    next-char (if (< index (- data-length 1))
-                                (nth data (inc index))
-                                nil)
-                    str-char (str char)]
-                (case state
-                  :in-field
-                  (condp = str-char
-                    "\""
-                    (if in-quoted-field
-                      (if (= (str next-char) "\"")
-                        (recur (+ index 2)
-                               :in-field
-                               true
-                               (str field-buffer char)
-                               rows)
-                        (recur (inc index) :in-field false field-buffer rows))
-                      (recur (inc index)
-                             :in-field
-                             true
-                             field-buffer
-                             (if (> (count rows) 0)
-                               rows
-                               (conj rows []))))
+  (let [{:keys [separator newline] :or {separator "," newline :lf}} options
+        ;; convert separator from string to character
+        separator (first separator)]
+    (when-not (contains? newlines newline)
+      (throw (js/Error. newline-error-message)))
+    (loop [{:keys [char chars in-quoted-field field-buffer] :as state} (-init-read data)]
+      (if-not char
+        (:rows (-end-row state))
+        ;; NOTE: always advance or consume to avoid infinite loops
+        (recur (if in-quoted-field
+                 (if (= char \")
+                   (if (= (first chars) \")
+                     ;; pair of double quotes: use one "escaped" quote and drop
+                     ;; the other, staying in quoted field
+                     (-> state (-consume) (-advance))
+                     ;; one double quote: end of quoted field
+                     ;; NOTE: we expect that a separator or newline is next, but
+                     ;; don't verify. Therefore, any characters between the
+                     ;; "closing" double quote and the next separator or newline
+                     ;; will be appended to the current field.
+                     (-> state (dissoc :in-quoted-field) (-advance)))
+                   ;; regular character in quoted field
+                   (-consume state))
+                 (cond
+                   ;; first char in field is a quote
+                   (and (= char \")
+                        (not field-buffer))
+                   (-> state (assoc :in-quoted-field true) (-advance))
 
-                    separator
-                    (if in-quoted-field
-                      (recur (inc index)
-                             :in-field
-                             in-quoted-field
-                             (str field-buffer char)
-                             rows)
-                      (recur (inc index)
-                             :end-field
-                             in-quoted-field
-                             ""
-                             (conj-in rows last-row-index field-buffer)))
+                   (= char separator)
+                   (-> state (-end-field) (-advance))
 
-                    "\r"
-                    (if (and (= newline :cr+lf) (not in-quoted-field))
-                      (recur (inc index)
-                             :in-field
-                             in-quoted-field
-                             field-buffer
-                             rows)
-                      (recur (inc index)
-                             :in-field
-                             in-quoted-field
-                             (str field-buffer char)
-                             rows))
+                   (and (= char \return)
+                        (= newline :cr+lf)
+                        (= (first chars) \newline))
+                   (-> state (-end-row) (-advance) (-advance))
 
-                    "\n"
-                    (if in-quoted-field
-                      (recur (inc index)
-                             :in-field
-                             in-quoted-field
-                             (str field-buffer char)
-                             rows)
-                      (recur (inc index)
-                             :end-line
-                             in-quoted-field
-                             ""
-                             (conj-in rows last-row-index field-buffer)))
+                   (and (= char \newline)
+                        (= newline :lf))
+                   (-> state (-end-row) (-advance))
 
-                    (recur (inc index)
-                           :in-field
-                           in-quoted-field
-                           (str field-buffer char)
-                           (if (> (count rows) 0)
-                             rows
-                             (conj rows []))))
-
-                  :end-field
-                  (condp = str-char
-                    "\""
-                    (recur (inc index) :in-field true field-buffer rows)
-
-                    separator
-                    (recur (inc index)
-                           :end-field
-                           in-quoted-field
-                           ""
-                           (conj-in rows last-row-index ""))
-
-                    "\n"
-                    (recur (inc index)
-                           :end-line
-                           in-quoted-field
-                           ""
-                           (conj-in rows last-row-index field-buffer))
-
-                    (recur (inc index) :in-field in-quoted-field str-char rows))
-
-                  :end-line
-                  (case str-char
-                    "\""
-                    (recur (inc index)
-                           :in-field
-                           true
-                           field-buffer
-                           (conj (or rows []) []))
-
-                    (recur (inc index)
-                           :in-field
-                           in-quoted-field
-                           (str field-buffer char)
-                           (conj (or rows []) [])))))
-              (conj-in rows last-row-index field-buffer)))))
-      (throw (js/Error. newline-error-message)))))
-
+                   :else
+                   (-consume state))))))))

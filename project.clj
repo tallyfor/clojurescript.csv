@@ -1,11 +1,11 @@
-(defproject testdouble/clojurescript.csv "0.4.6-SNAPSHOT"
+(defproject tallyfor/clojurescript.csv "0.5.2-TALLYFOR"
   :description "A ClojureScript library for reading and writing comma (and other) separated values."
   :url "https://github.com/testdouble/clojurescript.csv"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.6.0"]
-                 [org.clojure/clojurescript "0.0-2511"]]
-  :plugins [[lein-cljsbuild "1.1.0"]]
+  :dependencies [[org.clojure/clojure "1.8.0"]
+                 [org.clojure/clojurescript "1.10.126"]]
+  :plugins [[lein-cljsbuild "1.1.8"]]
   :hooks [leiningen.cljsbuild]
   :cljsbuild {:builds [{:id "whitespace"
                         :source-paths ["src" "test"]

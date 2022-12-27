@@ -1,4 +1,4 @@
-(defproject tallyfor/clojurescript.csv "0.5.2-TALLYFOR"
+(defproject tallyfor/clojurescript.csv "0.5.3-TALLYFOR"
   :description "A ClojureScript library for reading and writing comma (and other) separated values."
   :url "https://github.com/testdouble/clojurescript.csv"
   :license {:name "Eclipse Public License"

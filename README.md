@@ -1,3 +1,5 @@
+> **Archived.** This repo has been migrated into the [tallyfor/balance](https://github.com/tallyfor/balance) monorepo at [`components/clojurescript-csv`](https://github.com/tallyfor/balance/tree/main/components/clojurescript-csv). All future development happens there.
+
 # clojurescript.csv [![Build Status](https://travis-ci.org/testdouble/clojurescript.csv.png?branch=main)](https://travis-ci.org/testdouble/clojurescript.csv) [![Dependency Status](https://www.versioneye.com/user/projects/53d67fe23648f4a793000046/badge.svg)](https://www.versioneye.com/user/projects/53d67fe23648f4a793000046)
 
 A ClojureScript library for reading and writing comma (and other) separated values.
